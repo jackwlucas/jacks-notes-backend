@@ -2,6 +2,7 @@ package dev.jacklucas.notes_api.tag;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.awt.print.Pageable;
 import java.util.Optional;
 import java.util.UUID;
 

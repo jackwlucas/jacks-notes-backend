@@ -77,7 +77,19 @@ public class NoteController {
 
     // Route handles getting paginated list of notes.
     @GetMapping
-    public Page<ReadNoteResponse> listNotes(Pageable pageable) {
+    public Page<ReadNoteResponse> listNotes(
+            @RequestParam(required = false) String tag,
+            Pageable pageable
+    ) {
+        // Check if the tag param is null and if it is not, then trim it.
+        var param = (tag == null) ? null : tag.trim();
+
+        // If the tag exists, get notes with it.
+        if (param != null && !param.isEmpty()) {
+            return noteRepository.findByTags_Name(param, pageable).map(ReadNoteResponse::from);
+        }
+
+        // Otherwise, just list notes.
         return noteRepository.findAll(pageable).map(ReadNoteResponse::from);
     }
 
