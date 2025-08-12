@@ -19,13 +19,17 @@ public class GlobalExceptionHandler {
 
     // (400) Handle field level errors.
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ExceptionResponse> handeValidationExceptions(
+    public ResponseEntity<ExceptionResponse> handleValidationExceptions(
             MethodArgumentNotValidException ex,
             HttpServletRequest request
     ) {
-        // Set the status and get field-level errors.
+        // Set the status.
         var status = HttpStatus.BAD_REQUEST;
-        var fieldErrors = ex.getBindingResult().getFieldErrors();
+
+        // Iterate over the field errors and transform them into our leaner field error item.
+        var fieldErrors = ex.getBindingResult().getFieldErrors().stream()
+                .map((f) -> new ExceptionResponse.FieldErrorItem(f.getField(), f.getDefaultMessage()))
+                .toList();
 
         // Build the response body.
         var exceptionResponse = new ExceptionResponse(
@@ -45,7 +49,7 @@ public class GlobalExceptionHandler {
     // (400) Handle malformed JSON.
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ExceptionResponse> handleMalformedJson(
-            MethodArgumentNotValidException ex,
+            HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
         // Set the status and get field-level errors.
