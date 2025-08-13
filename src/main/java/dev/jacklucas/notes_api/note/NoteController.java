@@ -9,6 +9,7 @@ import dev.jacklucas.notes_api.tag.TagRepository;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.coyote.Response;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -34,7 +35,7 @@ public class NoteController {
 
     // Route handles creating new notes.
     @PostMapping
-    public ReadNoteResponse createNote(@RequestBody @Valid CreateNoteRequest request) {
+    public ResponseEntity<ReadNoteResponse> createNote(@RequestBody @Valid CreateNoteRequest request) {
         // Build the note.
         var note = Note.builder()
                 .title(request.title())
@@ -42,39 +43,13 @@ public class NoteController {
                 .archived(false)
                 .build();
 
-        // Handle any tags.
-        if (request.tags() != null && !request.tags().isEmpty()) {
-            // Initialize a new hash set to store the tags.
-            var tags = new HashSet<Tag>();
-
-            // Iterate over the tags.
-            for (var t : request.tags()) {
-
-                // Make sure that the tag is not null or blank.
-                if (t == null || t.isBlank()) continue;
-
-                // Otherwise, get the tag name and trim it.
-                var name = t.trim();
-
-                // Check if the tag exists.
-                var tag = tagRepository.findByName(name).orElse(null);
-
-                // If the tag does not exist, create it.
-                if (tag == null) {
-                    tag = tagRepository.save(Tag.builder().name(name).build());
-                }
-
-                // Add the tag to the set.
-                tags.add(tag);
-            }
-
-            // Set the tags on the note.
-            note.setTags(tags);
-        }
+        // Handle any tags using the helper method
+        var resolvedTags = resolveTags(request.tags());
+        note.setTags(resolvedTags);
 
         // Return the note.
         var saved = noteRepository.save(note);
-        return ReadNoteResponse.from(saved);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ReadNoteResponse.from(saved));
     }
 
     // Route handles getting paginated list of notes.
@@ -181,7 +156,7 @@ public class NoteController {
         // Remove null/blank values and trim whitespace.
         Set<String> normalizedTags = new HashSet<>();
         for (String t : tags) {
-            if (t != null) {
+            if (!t.isBlank()) {
                 String trimmed = t.trim();
                 if (!trimmed.isEmpty()) {
                     normalizedTags.add(trimmed);
@@ -193,7 +168,7 @@ public class NoteController {
         Set<Tag> resolvedTags = new HashSet<>();
         for (String name : normalizedTags) {
             // Add the existing tag or build, save, and return a new tag.
-            resolvedTags.add(tagRepository.findByNameIgnoreCase(name)
+            resolvedTags.add(tagRepository.findByName(name)
                     .orElseGet(() -> {
                         var newTag = Tag.builder().name(name).build();
                         return tagRepository.save(newTag);
