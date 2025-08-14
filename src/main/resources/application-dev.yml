@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/notes
+    username: notes_user
+    password: notes_pass
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: pleasant-snapper-44.clerk.accounts.dev
