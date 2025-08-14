@@ -29,6 +29,10 @@ public class Note {
 
     @NotBlank
     @Column(nullable = false)
+    private String ownerId;
+
+    @NotBlank
+    @Column(nullable = false)
     private String title;
 
     @Column(columnDefinition = "text")

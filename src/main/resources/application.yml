@@ -4,3 +4,15 @@ spring:
       ddl-auto: validate
   flyway:
     enabled: true
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Clerk's JWKS endpoint for your app
+          jwk-set-uri: https://${CLERK_DOMAIN}/.well-known/jwks.json
+          # Or use issuer-uri for auto-configuration
+          issuer-uri: https://${CLERK_DOMAIN}
+
+# Your Clerk domain (from Clerk dashboard)
+clerk:
+  domain: ${CLERK_DOMAIN:your-app.clerk.accounts.dev}

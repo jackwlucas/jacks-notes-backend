@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record CreateNoteRequest(
+        @NotBlank String userId,
         @NotBlank String title,
         @NotNull String content,
         List<String> tags

@@ -1,5 +1,0 @@
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/notes
-    username: notes_user
-    password: notes_pass

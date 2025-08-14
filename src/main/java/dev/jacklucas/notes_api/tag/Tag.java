@@ -24,7 +24,11 @@ public class Tag {
     private UUID id;
 
     @NotBlank
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
+    private String ownerId;
+
+    @NotBlank
+    @Column(nullable = false)
     private String name;
 
     private Instant createdAt;

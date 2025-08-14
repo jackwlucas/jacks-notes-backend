@@ -8,4 +8,8 @@ import java.util.UUID;
 
 public interface NoteRepository extends JpaRepository<Note, UUID> {
     Page<Note> findByTags_Name(String name, Pageable pageable);
+
+    Page<Note> findByOwnerId(String ownerId, java.awt.print.Pageable pageable);
+
+    Page<Note> findByOwnerIdAndTags_Name(String ownerId, String name, java.awt.print.Pageable pageable);
 }

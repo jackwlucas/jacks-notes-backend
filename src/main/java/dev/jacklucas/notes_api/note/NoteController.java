@@ -6,10 +6,10 @@ import dev.jacklucas.notes_api.note.dto.PutNoteRequest;
 import dev.jacklucas.notes_api.note.dto.ReadNoteResponse;
 import dev.jacklucas.notes_api.tag.Tag;
 import dev.jacklucas.notes_api.tag.TagRepository;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.coyote.Response;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -33,18 +33,23 @@ public class NoteController {
         this.tagRepository = tagRepository;
     }
 
+    private String getUserId(HttpServletRequest request) {
+        
+    }
+
     // Route handles creating new notes.
     @PostMapping
     public ResponseEntity<ReadNoteResponse> createNote(@RequestBody @Valid CreateNoteRequest request) {
         // Build the note.
         var note = Note.builder()
+                .ownerId(request.userId())
                 .title(request.title())
                 .content(request.content())
                 .archived(false)
                 .build();
 
         // Handle any tags using the helper method
-        var resolvedTags = resolveTags(request.tags());
+        var resolvedTags = resolveTags(request.tags(), request.userId());
         note.setTags(resolvedTags);
 
         // Return the note.
@@ -97,7 +102,7 @@ public class NoteController {
         note.setArchived(archived);
 
         // Handle the tags.
-        var resolvedTags = resolveTags(request.tags());
+        var resolvedTags = resolveTags(request.tags(), request.userId());
         note.setTags(resolvedTags);
 
         // Save the note and return a CREATED response.
@@ -120,7 +125,7 @@ public class NoteController {
         request.archived().ifPresent(note::setArchived);
 
         request.tags().ifPresent((tags) -> {
-            var newTags = resolveTags(tags);
+            var newTags = resolveTags(tags, request.userId());
             note.setTags(newTags);
         });
 
@@ -147,7 +152,7 @@ public class NoteController {
      * Takes a list of tag names and returns the corresponding Tag entities.
      * Creates new Tag records if they don't already exist.
      */
-    private Set<Tag> resolveTags(List<String> tags) {
+    private Set<Tag> resolveTags(List<String> tags, String userId) {
         // Return empty set if no tags were provided.
         if (tags == null || tags.isEmpty()) {
             return Collections.emptySet();
@@ -168,7 +173,7 @@ public class NoteController {
         Set<Tag> resolvedTags = new HashSet<>();
         for (String name : normalizedTags) {
             // Add the existing tag or build, save, and return a new tag.
-            resolvedTags.add(tagRepository.findByName(name)
+            resolvedTags.add(tagRepository.findByNameAndOwnerId(name, userId)
                     .orElseGet(() -> {
                         var newTag = Tag.builder().name(name).build();
                         return tagRepository.save(newTag);
