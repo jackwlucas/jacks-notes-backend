@@ -25,7 +25,7 @@ public class Tag {
 
     @NotBlank
     @Column(nullable = false)
-    private String ownerId;
+    private String userId;
 
     @NotBlank
     @Column(nullable = false)

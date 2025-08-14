@@ -16,6 +16,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -33,24 +35,24 @@ public class NoteController {
         this.tagRepository = tagRepository;
     }
 
-    private String getUserId(HttpServletRequest request) {
-        
-    }
-
     // Route handles creating new notes.
     @PostMapping
-    public ResponseEntity<ReadNoteResponse> createNote(@RequestBody @Valid CreateNoteRequest request) {
-        // Build the note.
+    public ResponseEntity<ReadNoteResponse> createNote(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody @Valid CreateNoteRequest request
+    ) {
+        // Get user.
+        final String userId = jwt.getSubject();
+
+        // Build the note and resolve tags.
         var note = Note.builder()
-                .ownerId(request.userId())
+                .userId(userId)
                 .title(request.title())
                 .content(request.content())
                 .archived(false)
                 .build();
 
-        // Handle any tags using the helper method
-        var resolvedTags = resolveTags(request.tags(), request.userId());
-        note.setTags(resolvedTags);
+        note.setTags(resolveTags(request.tags(), userId));
 
         // Return the note.
         var saved = noteRepository.save(note);
@@ -60,74 +62,86 @@ public class NoteController {
     // Route handles getting paginated list of notes.
     @GetMapping
     public Page<ReadNoteResponse> listNotes(
+            @AuthenticationPrincipal Jwt jwt,
             @RequestParam(required = false) String tag,
             @PageableDefault(sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        // Check if the tag param is null and if it is not, then trim it.
+        final String userId = jwt.getSubject();
+
         var param = (tag == null) ? null : tag.trim();
 
-        // If the tag exists, get notes with it.
         if (param != null && !param.isEmpty()) {
-            return noteRepository.findByTags_Name(param, pageable).map(ReadNoteResponse::from);
+            return noteRepository.findByUserIdAndTags_Name(userId, param, pageable).map(ReadNoteResponse::from);
         }
 
-        // Otherwise, just list notes.
-        return noteRepository.findAll(pageable).map(ReadNoteResponse::from);
+        return noteRepository.findByUserId(userId, pageable).map(ReadNoteResponse::from);
     }
 
     // Route handles getting note by ID.
     @GetMapping("/{id}")
-    public ReadNoteResponse getNoteById(@PathVariable UUID id) {
-        var note = noteRepository.findById(id).orElseThrow(() -> new NoteNotFound(id));
+    public ReadNoteResponse getNoteById(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id
+    ) {
+        final String ownerId = jwt.getSubject();
+
+        var note = noteRepository.findById(id)
+                .filter(n -> n.getUserId().equals(ownerId))
+                .orElseThrow(() -> new NoteNotFound(id));
+
         return ReadNoteResponse.from(note);
     }
 
     // Route handles updating a Note by ID.
     @Transactional
     @PutMapping("/{id}")
-    public ResponseEntity<ReadNoteResponse> updateNote(@PathVariable UUID id, @RequestBody @Valid PutNoteRequest request) {
+    public ResponseEntity<ReadNoteResponse> updateNote(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @RequestBody @Valid PutNoteRequest request
+    ) {
         log.info("PUT /api/notes/{}", id);
 
+        final String userId = jwt.getSubject();
+
         // Get the note that we want to update.
-        var note = noteRepository.findById(id).orElseThrow(() -> new NoteNotFound(id));
+        var note = noteRepository.findById(id)
+                .filter(n -> n.getUserId().equals(userId))
+                .orElseThrow(() -> new NoteNotFound(id));
 
-        // Get/trim the title and content. Get the archived boolean.
-        var title = request.title().trim();
-        var content = request.content().trim();
-        var archived = request.archived();
-
-        // Set the title, content, and archived values.
-        note.setTitle(title);
-        note.setContent(content);
-        note.setArchived(archived);
+        // Update the values.
+        note.setTitle(request.title().trim());
+        note.setContent(request.content().trim());
+        note.setArchived(request.archived());
+        note.setTags(resolveTags(request.tags(), userId));
 
         // Handle the tags.
-        var resolvedTags = resolveTags(request.tags(), request.userId());
+        var resolvedTags = resolveTags(request.tags(), userId);
         note.setTags(resolvedTags);
 
-        // Save the note and return a CREATED response.
-        var savedNote = noteRepository.save(note);
-        return ResponseEntity.status(HttpStatus.OK).body(ReadNoteResponse.from(savedNote));
+        // Save the note and return it.
+        var saved = noteRepository.save(note);
+        return ResponseEntity.status(HttpStatus.OK).body(ReadNoteResponse.from(saved));
     }
 
     @Transactional
     @PatchMapping("/{id}")
-    public ResponseEntity<ReadNoteResponse> patchNote(@PathVariable UUID id, @RequestBody @Valid PatchNoteRequest request) {
+    public ResponseEntity<ReadNoteResponse> patchNote(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id,
+            @RequestBody @Valid PatchNoteRequest request) {
         log.info("PATCH /api/notes/{}", id);
+
+        final String userId = jwt.getSubject();
 
         // Get the note that we want to patch.
         var note = noteRepository.findById(id).orElseThrow(() -> new NoteNotFound(id));
 
+        // Update the values.
         request.title().ifPresent(note::setTitle);
-
         request.content().ifPresent(note::setContent);
-
         request.archived().ifPresent(note::setArchived);
-
-        request.tags().ifPresent((tags) -> {
-            var newTags = resolveTags(tags, request.userId());
-            note.setTags(newTags);
-        });
+        request.tags().ifPresent(tags -> note.setTags(resolveTags(tags, userId)));
 
         // Save the note and return a good response.
         var savedNote = noteRepository.save(note);
@@ -136,12 +150,18 @@ public class NoteController {
 
     // Route handles deleting a note by ID.
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteNoteById(@PathVariable UUID id) {
+    public ResponseEntity<Void> deleteNoteById(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID id
+    ) {
         log.info("DELETE /api/notes/{}", id);
 
-        var note = noteRepository.findById(id).orElseThrow(() -> new NoteNotFound(id));
+        final String userId = jwt.getSubject();
 
-        // If the note exists, delete it and return a no-content response.
+        var note = noteRepository.findById(id)
+                .filter(n -> n.getUserId().equals(userId))
+                .orElseThrow(() -> new NoteNotFound(id));
+
         noteRepository.delete(note);
         return ResponseEntity.noContent().build();
     }
@@ -173,7 +193,7 @@ public class NoteController {
         Set<Tag> resolvedTags = new HashSet<>();
         for (String name : normalizedTags) {
             // Add the existing tag or build, save, and return a new tag.
-            resolvedTags.add(tagRepository.findByNameAndOwnerId(name, userId)
+            resolvedTags.add(tagRepository.findByNameAndUserId(name, userId)
                     .orElseGet(() -> {
                         var newTag = Tag.builder().name(name).build();
                         return tagRepository.save(newTag);

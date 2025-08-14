@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Optional;
 
 public record PatchNoteRequest(
-        @NotBlank String userId,
         Optional<@NotBlank String> title,
         Optional<@NotNull String> content,
         Optional<List<String>> tags,

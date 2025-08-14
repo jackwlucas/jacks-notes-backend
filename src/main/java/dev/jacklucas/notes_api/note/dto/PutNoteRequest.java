@@ -6,7 +6,6 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record PutNoteRequest(
-        @NotBlank String userId,
         @NotBlank String title,
         @NotNull String content,
         List<String> tags,
