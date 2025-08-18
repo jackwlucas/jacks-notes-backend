@@ -3,3 +3,10 @@ spring:
     url: ${DATABASE_URL}
     username: ${DATABASE_USERNAME}
     password: ${DATABASE_PASSWORD}
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Set in your host env/secrets
+          issuer-uri: ${JWT_ISSUER_URI}
