@@ -135,7 +135,9 @@ public class NoteController {
         final String userId = jwt.getSubject();
 
         // Get the note that we want to patch.
-        var note = noteRepository.findById(id).orElseThrow(() -> new NoteNotFound(id));
+        var note = noteRepository.findById(id)
+                .filter(n -> n.getUserId().equals(userId))
+                .orElseThrow(() -> new NoteNotFound(id));
 
         // Update the values.
         request.title().ifPresent(note::setTitle);
@@ -195,7 +197,7 @@ public class NoteController {
             // Add the existing tag or build, save, and return a new tag.
             resolvedTags.add(tagRepository.findByNameAndUserId(name, userId)
                     .orElseGet(() -> {
-                        var newTag = Tag.builder().name(name).build();
+                        var newTag = Tag.builder().name(name).userId(userId).build();
                         return tagRepository.save(newTag);
                     }));
         }
